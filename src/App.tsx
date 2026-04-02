@@ -218,10 +218,10 @@ export default function App() {
               Direito Imobiliário & Tributário
             </span>
             <h1 className="text-4xl md:text-6xl text-brand-graphite leading-tight mb-6">
-              Recupere o ITBI pago a mais em <span className="italic">Sumaré-SP</span>.
+              Verifique se houve cobrança indevida de ITBI em <span className="italic">Sumaré-SP</span>.
             </h1>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed mb-8">
-              Use nossa calculadora e descubra em segundos se você tem direito à restituição do imposto pago nos últimos 5 anos.
+              Analise a base de cálculo do seu imposto e entenda se há valores pagos acima do decidido pelos tribunais superiores.
             </p>
           </motion.div>
         </div>
@@ -334,7 +334,7 @@ export default function App() {
                     <>Processando...</>
                   ) : (
                     <>
-                      <Calculator size={20} /> Calcular minha restituição
+                      <Calculator size={20} /> Simular análise de ITBI
                     </>
                   )}
                 </button>
@@ -409,7 +409,7 @@ export default function App() {
                             </div>
                           )}
                           <div className="flex justify-between items-center pt-4">
-                            <span className="text-brand-graphite font-bold">Valor a restituir:</span>
+                            <span className="text-brand-graphite font-bold">Diferença estimada:</span>
                             <span className="text-xl font-bold text-brand-amber">{formatCurrency(result.diferenca)}</span>
                           </div>
                         </div>
@@ -431,7 +431,7 @@ export default function App() {
                           </div>
                           
                           <a 
-                            href={`https://wa.me/5519993598714?text=Ol%C3%A1%2C%20Matheus.%20Acabei%20de%20usar%20sua%20calculadora%20de%20ITBI%20de%20Sumar%C3%A9%20e%20encontrei%20uma%20estimativa%20de%20restitui%C3%A7%C3%A3o%20de%20${formatCurrency(result.valorCorrigido)}.%20Gostaria%20de%20saber%20como%20proceder.`}
+                            href={`https://wa.me/5519993598714?text=Ol%C3%A1%2C%20Matheus.%20Acabei%20de%20usar%20sua%20calculadora%20de%20ITBI%20em%20Sumar%C3%A9%20e%20verifiquei%20uma%20poss%C3%ADvel%20diferen%C3%A7a%20de%20${formatCurrency(result.valorCorrigido)}%20no%20meu%20imposto.%20Gostaria%20de%20saber%20como%20proceder.`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="w-full bg-[#25D366] text-white flex justify-center items-center gap-3 py-4 rounded-sm font-bold hover:bg-[#128C7E] transition-colors shadow-lg"
@@ -499,7 +499,7 @@ export default function App() {
           <div className="grid grid-cols-1 md:grid-cols-12 gap-12">
             <div className="md:col-span-4">
               <div className="sticky top-12 space-y-6">
-                <h2 className="text-3xl text-brand-graphite">Por que você tem esse direito?</h2>
+                <h2 className="text-3xl text-brand-graphite">Entenda o embasamento jurídico</h2>
                 <div className="relative flex flex-col md:items-start items-center">
                   <img 
                     src="https://lh3.googleusercontent.com/d/10ohuYlo8Uf3BT3AfaAmgjaVLc6of0Pjo" 
