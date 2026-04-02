@@ -81,18 +81,18 @@ export default function App() {
 
   // --- Deadline Logic ---
   const windowPrescription = useMemo(() => {
-    // A janela total de pagamentos elegíveis é de Abril/2021 a Dezembro/2025.
-    const START_WINDOW = new Date(2021, 3, 1); // 01/04/2021
-    const END_WINDOW = new Date(2025, 11, 31); // 31/12/2025
+    // A janela de pagamentos elegíveis (5 anos antes da nova lei)
+    const START_WINDOW = new Date(2021, 0, 1); // 01/01/2021
+    const END_WINDOW = new Date(2026, 0, 1);   // 01/01/2026
     
-    // A linha de prescrição hoje (pagamentos feitos há exatamente 5 anos)
+    // A data que está prescrevendo exatamente hoje (5 anos atrás)
     const prescriptionLine = new Date(HOJE.getFullYear() - 5, HOJE.getMonth(), HOJE.getDate());
     
     const totalDuration = END_WINDOW.getTime() - START_WINDOW.getTime();
+    const elapsed = prescriptionLine.getTime() - START_WINDOW.getTime();
     
-    // Quanto do período já prescreveu (da data inicial até a linha de prescrição)
-    const prescribedDuration = Math.max(0, prescriptionLine.getTime() - START_WINDOW.getTime());
-    const prescribedPercentage = Math.min(100, (prescribedDuration / totalDuration) * 100);
+    // Posição do marcador sobre a janela 2021-2026
+    const prescribedPercentage = Math.min(100, Math.max(0, (elapsed / totalDuration) * 100));
     
     return { prescribedPercentage, prescriptionLine };
   }, []);
@@ -499,55 +499,61 @@ export default function App() {
       </section>
 
       {/* --- Section 2: Visual Deadline --- */}
-      <section className="py-16 px-6 bg-brand-cream">
+      <section className="py-20 px-6 bg-brand-cream border-y border-gray-100">
         <div className="max-w-4xl mx-auto text-center">
-          <h3 className="text-2xl mb-4">Janela de Oportunidade</h3>
-          <p className="text-gray-600 mb-10">O tempo está "comendo" seu direito. Pagamentos anteriores a {windowPrescription.prescriptionLine.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })} já prescreveram.</p>
+          <h3 className="font-serif text-2xl text-brand-graphite mb-4">Janela de Oportunidade</h3>
+          <p className="text-gray-600 mb-12 max-w-2xl mx-auto">
+            A barra representa os pagamentos feitos entre 2021 e 2026. 
+            O marcador indica a <strong>data limite</strong>: pagamentos feitos antes dela já prescreveram.
+          </p>
           
-          <div className="relative pt-10 pb-4">
-            {/* Moving Label */}
+          <div className="relative pt-12 pb-8">
+            {/* Moving Label & Needle */}
             <motion.div 
               initial={{ left: 0 }}
               animate={{ left: `${windowPrescription.prescribedPercentage}%` }}
-              transition={{ duration: 2, ease: "easeOut" }}
-              className="absolute top-0 -translate-x-1/2 flex flex-col items-center"
+              transition={{ duration: 2, ease: "circOut" }}
+              className="absolute top-0 -translate-x-1/2 flex flex-col items-center z-20"
             >
-              <span className="text-[10px] font-bold text-red-600 bg-white px-2 py-1 rounded-full shadow-sm border border-red-100 whitespace-nowrap mb-1">
-                Prescrevendo: {windowPrescription.prescriptionLine.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })}
-              </span>
-              <div className="w-0.5 h-4 bg-red-500" />
+              <div className="bg-red-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-sm shadow-xl whitespace-nowrap mb-1 flex flex-col items-center">
+                <span className="opacity-80 font-normal text-[8px] uppercase tracking-tighter">Prescrevendo hoje:</span>
+                {windowPrescription.prescriptionLine.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+              </div>
+              <div className="w-0.5 h-10 bg-red-600 relative">
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2 h-2 bg-red-600 rounded-full border-2 border-white" />
+              </div>
             </motion.div>
 
-            <div className="relative h-6 bg-brand-amber rounded-full overflow-hidden border-2 border-white shadow-inner">
-              {/* Prescribed Part (Gray) */}
-              <motion.div 
-                initial={{ width: 0 }}
-                animate={{ width: `${windowPrescription.prescribedPercentage}%` }}
-                transition={{ duration: 2, ease: "easeOut" }}
-                className="absolute top-0 left-0 h-full bg-gray-300 flex items-center justify-end px-2"
-              >
-                <span className="text-[9px] font-bold text-gray-500 uppercase whitespace-nowrap">Prescrito</span>
-              </motion.div>
-              
-              {/* Wall Indicator */}
-              <div className="absolute top-0 right-0 h-full w-2 bg-brand-graphite" title="Parede: Nova Lei 01/01/2026" />
+            {/* The Bar Container (Solid Amber) */}
+            <div className="relative h-10 bg-brand-amber rounded-sm border-2 border-brand-graphite/10 shadow-inner overflow-hidden">
+              {/* Labels inside the bar */}
+              <div className="absolute inset-0 flex justify-center items-center pointer-events-none">
+                <span className="text-[10px] font-bold text-brand-graphite/30 uppercase tracking-[0.2em]">Pagamentos Elegíveis (2021-2026)</span>
+              </div>
+
+              {/* Wall Indicator (The Stop) */}
+              <div className="absolute top-0 right-0 h-full w-3 bg-brand-graphite flex items-center justify-center" title="Parede: Nova Lei 01/01/2026">
+                <div className="w-[1px] h-1/2 bg-white/20" />
+              </div>
             </div>
           </div>
           
-          <div className="flex justify-between text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+          <div className="flex justify-between text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">
             <div className="text-left">
-              <p>Abril/2021</p>
-              <p className="font-normal normal-case text-gray-400">Início do Período</p>
+              <p className="text-gray-600">01/01/2021</p>
             </div>
             <div className="text-right">
-              <p>01/01/2026</p>
-              <p className="font-normal normal-case text-gray-400">Limite da Nova Lei</p>
+              <p className="text-brand-graphite">01/01/2026</p>
+              <p className="font-normal normal-case text-[9px]">Limite da Nova Lei</p>
             </div>
           </div>
           
-          <p className="mt-8 text-sm text-gray-500 italic">
-            *A parte <span className="text-brand-amber font-bold">âmbar</span> representa os pagamentos que você ainda pode recuperar. A parte <span className="text-gray-400 font-bold">cinza</span> já foi perdida para a prescrição de 5 anos.
-          </p>
+          <div className="mt-12 p-4 bg-white/50 rounded-sm border border-gray-100 inline-block">
+            <p className="text-xs text-gray-500 leading-relaxed">
+              Tudo à <strong>esquerda</strong> do marcador vermelho já foi perdido para a prescrição. 
+              Tudo à <strong>direita</strong> ainda pode ser recuperado judicialmente.
+            </p>
+          </div>
         </div>
       </section>
 
