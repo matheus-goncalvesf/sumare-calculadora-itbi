@@ -83,7 +83,7 @@ export default function App() {
   const windowPrescription = useMemo(() => {
     // A janela de pagamentos elegíveis (5 anos antes da nova lei)
     const START_WINDOW = new Date(2021, 0, 1); // 01/01/2021
-    const END_WINDOW = new Date(2026, 0, 1);   // 01/01/2026
+    const END_WINDOW = new Date(2025, 11, 31); // 31/12/2025
     
     // A data que está prescrevendo exatamente hoje (5 anos atrás)
     const prescriptionLine = new Date(HOJE.getFullYear() - 5, HOJE.getMonth(), HOJE.getDate());
@@ -347,6 +347,16 @@ export default function App() {
                   </select>
                 </div>
 
+                {tipoTransacao === 'sfh_financed' && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="p-3 bg-blue-50 text-blue-800 text-xs rounded-sm mb-4"
+                  >
+                    <p><strong>O que é SFH?</strong> É o Sistema Financeiro de Habitação. Geralmente usado em financiamentos da Caixa (como o <strong>Minha Casa Minha Vida</strong>) ou quando você utiliza o seu <strong>FGTS</strong> na compra. Possui alíquota reduzida de 0,5% sobre o valor financiado.</p>
+                  </motion.div>
+                )}
+
                 {tipoTransacao === 'first_property' && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
@@ -543,7 +553,7 @@ export default function App() {
               <p className="text-gray-600">01/01/2021</p>
             </div>
             <div className="text-right">
-              <p className="text-brand-graphite">01/01/2026</p>
+              <p className="text-brand-graphite">31/12/2025</p>
               <p className="font-normal normal-case text-[9px]">Limite da Nova Lei</p>
             </div>
           </div>
