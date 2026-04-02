@@ -3,19 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Calendar, 
   Calculator, 
   Mail, 
   MessageCircle, 
   AlertCircle, 
   CheckCircle2, 
-  Clock,
-  ArrowRight,
-  HelpCircle,
-  Info
+  Clock
 } from 'lucide-react';
 
 // --- Types ---
@@ -46,6 +42,7 @@ export default function App() {
   const [result, setResult] = useState<CalculationResult | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  const resultsRef = useRef<HTMLDivElement>(null);
 
   // --- Handlers for correlated values ---
   const handleValorEscrituraChange = (val: number | '') => {
@@ -81,11 +78,11 @@ export default function App() {
   const HOJE = new Date();
   const SELIC_PROXY = 0.006; // 0.6% ao mês
 
-  // --- Deadline Logic for Section 3 ---
+  // --- Deadline Logic ---
   const windowPrescription = useMemo(() => {
-    // Janela prescricional mencionada no prompt: Março 2020 a Março 2025
-    const startWindow = new Date(2020, 2, 1); // Março 2020
-    const endWindow = new Date(2025, 2, 1); // Março 2025
+    // Janela prescricional: Abril 2021 a Dezembro 2025
+    const startWindow = new Date(2021, 3, 1); // Abril 2021
+    const endWindow = new Date(2025, 11, 31); // Dezembro 2025
     
     const totalDuration = endWindow.getTime() - startWindow.getTime();
     const elapsed = HOJE.getTime() - startWindow.getTime();
@@ -122,7 +119,7 @@ export default function App() {
       if (pgDate > dataCorteNovaLei) {
         setResult({
           itbiCobrado: Number(valorItbiPago),
-          itbiCorreto: Number(valorItbiPago), // Assume correto sob a nova lei para fins de simulação
+          itbiCorreto: Number(valorItbiPago),
           diferenca: 0,
           valorCorrigido: 0,
           statusPrazo: "🟢 Pagamento realizado sob a nova LC 696/2025",
@@ -149,7 +146,7 @@ export default function App() {
         const baseEntradaCorreta = vEscritura - vFinanciado;
         itbiCorreto = (baseFinanciadaCorreta * aliquotaIsenta) + (baseEntradaCorreta * aliquotaPadrao);
       } else if (tipoTransacao === 'first_property') {
-        const teto = 50000; // Conforme solicitado: só se aplica até 50 mil
+        const teto = 50000;
         itbiCorreto = vEscritura <= teto ? vEscritura * aliquotaIsenta : vEscritura * aliquotaPadrao;
       } else {
         itbiCorreto = vEscritura * aliquotaPadrao;
@@ -220,6 +217,11 @@ export default function App() {
         baseUtilizada
       });
       setIsCalculating(false);
+
+      // Auto-scroll to results on mobile
+      setTimeout(() => {
+        resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
     }, 400);
   };
 
@@ -230,133 +232,32 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col selection:bg-brand-amber selection:text-white">
       {/* --- Header / Hero --- */}
-      <header className="relative bg-white pt-12 pb-24 px-6 overflow-hidden border-b border-gray-100">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-          <div className="lg:col-span-8">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8 }}
-            >
-              <span className="inline-block px-3 py-1 bg-brand-amber/10 text-brand-amber text-xs font-bold tracking-widest uppercase mb-6">
-                Direito Imobiliário & Tributário
-              </span>
-              <h1 className="text-4xl md:text-6xl text-brand-graphite leading-tight mb-8">
-                Você pode ter pago ITBI a mais em <span className="italic">São José dos Campos</span>.
-              </h1>
-              <p className="text-lg text-gray-600 max-w-2xl leading-relaxed mb-10">
-                Uma decisão histórica do STJ declarou ilegal a forma como a prefeitura calculava o imposto. 
-                Se você comprou um imóvel até 31/12/2025, tem direito a receber a diferença de volta.
-              </p>
-              <div className="flex flex-wrap gap-4">
-                <a href="#calculadora" className="btn-primary flex items-center gap-2">
-                  Calcular minha restituição <ArrowRight size={18} />
-                </a>
-                <a 
-                  href="https://wa.me/5519993598714?text=Ol%C3%A1%2C%20vim%20de%20sua%20calculadora%20de%20ITBI%20em%20S%C3%A3o%20Jos%C3%A9%20Dos%20Campos.%20Gostaria%20de%20tirar%20algumas%20d%C3%BAvidas." 
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-6 py-3 border border-brand-graphite/20 text-brand-graphite font-medium hover:bg-brand-graphite hover:text-white transition-all duration-300"
-                >
-                  <MessageCircle size={18} /> Falar com Especialista
-                </a>
-              </div>
-            </motion.div>
-          </div>
-
-          <div className="lg:col-span-4 flex justify-center lg:justify-end">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-              className="relative"
-            >
-              <div className="relative z-10 text-right">
-                <img 
-                  src="https://lh3.googleusercontent.com/d/10ohuYlo8Uf3BT3AfaAmgjaVLc6of0Pjo" 
-                  alt="Matheus Ximendes" 
-                  className="w-40 h-40 rounded-full object-cover border-4 border-white shadow-2xl mb-4 ml-auto grayscale hover:grayscale-0 transition-all duration-500"
-                  referrerPolicy="no-referrer"
-                />
-                <h3 className="text-xl font-serif text-brand-graphite">Matheus Ximendes</h3>
-                <p className="text-brand-amber font-medium text-sm">OAB/SP 542.856</p>
-                <p className="text-gray-500 text-xs uppercase tracking-wider mt-1">Especialista em Direito Tributário</p>
-              </div>
-              <div className="absolute -top-4 -right-4 w-24 h-24 bg-brand-amber/5 rounded-full -z-0" />
-            </motion.div>
-          </div>
+      <header className="relative bg-white pt-12 pb-12 px-6 overflow-hidden border-b border-gray-100">
+        <div className="max-w-6xl mx-auto text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+          >
+            <span className="inline-block px-3 py-1 bg-brand-amber/10 text-brand-amber text-xs font-bold tracking-widest uppercase mb-6">
+              Direito Imobiliário & Tributário
+            </span>
+            <h1 className="text-4xl md:text-6xl text-brand-graphite leading-tight mb-6">
+              Recupere o ITBI pago a mais em <span className="italic">São José dos Campos</span>.
+            </h1>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed mb-8">
+              Use nossa calculadora e descubra em segundos se você tem direito à restituição do imposto pago até 31/12/2025.
+            </p>
+          </motion.div>
         </div>
       </header>
 
-      {/* --- Section 2: Explanation --- */}
-      <section className="py-24 px-6 bg-white">
-        <div className="max-w-4xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-12">
-            <div className="md:col-span-4">
-              <h2 className="text-3xl text-brand-graphite sticky top-12">O que aconteceu?</h2>
-            </div>
-            <div className="md:col-span-8 space-y-8 text-gray-700 leading-relaxed">
-              <p>
-                O ITBI é o imposto pago na compra de imóvel, de competência municipal. Em São José dos Campos, a <strong>LC 383/09, art. 8°</strong> determinava que a base de cálculo fosse o maior valor entre o valor pago e o valor da Planta Genérica de Valores (PGV) — a tabela interna da prefeitura.
-              </p>
-              <div className="p-6 bg-brand-cream border-l-4 border-brand-amber italic">
-                "Em fevereiro de 2022, o STJ julgou o <strong>Tema Repetitivo 1.113</strong> (REsp 1.937.821/SP) e definiu que isso é ilegal: a base de cálculo deve ser o valor declarado pelo contribuinte (art. 38 do CTN), e a prefeitura só pode contestar mediante processo administrativo com contraditório (art. 148 do CTN)."
-              </div>
-              <p>
-                A própria Prefeitura de SJC reconheceu isso publicamente em agosto de 2025, ao enviar à Câmara o projeto de reforma, declarando que a mudança "adequa o Município às decisões judiciais proferidas sobre o tema".
-              </p>
-              <p>
-                A nova lei (<strong>LC 696/2025</strong>) foi aprovada em setembro de 2025 e corrigiu o sistema — mas só entrou em vigor em 01/01/2026. Quem pagou ITBI sobre a PGV até 31/12/2025 tem direito à repetição de indébito — devolução da diferença corrigida pela taxa Selic.
-              </p>
-              <div className="flex items-start gap-4 p-4 bg-red-50 text-red-800 rounded-sm">
-                <AlertCircle className="shrink-0 mt-1" size={20} />
-                <p className="text-sm">
-                  <strong>O prazo para agir é de 5 anos contados do pagamento (art. 168, I, do CTN)</strong>. Cada dia que passa, uma fatia da janela de oportunidade se fecha definitivamente.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* --- Section 3: Visual Deadline --- */}
-      <section className="py-16 px-6 bg-brand-cream">
-        <div className="max-w-4xl mx-auto text-center">
-          <h3 className="text-2xl mb-4">A janela que se fecha</h3>
-          <p className="text-gray-600 mb-10">A janela prescricional está encolhendo. Veja quanto tempo resta para agir:</p>
-          
-          <div className="relative h-4 bg-gray-200 rounded-full overflow-hidden mb-4">
-            <motion.div 
-              initial={{ width: 0 }}
-              animate={{ width: `${windowPrescription.percentage}%` }}
-              transition={{ duration: 2, ease: "easeOut" }}
-              className="absolute top-0 left-0 h-full bg-brand-amber"
-            />
-          </div>
-          
-          <div className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-widest">
-            <span>Abril/2021</span>
-            <span className="text-brand-amber">Hoje ({HOJE.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })})</span>
-            <span>Dezembro/2025</span>
-          </div>
-          
-          <p className="mt-8 text-sm text-gray-500">
-            *Pagamentos realizados há mais de 5 anos já prescreveram.
-          </p>
-        </div>
-      </section>
-
-      {/* --- Section 4: Calculator --- */}
-      <section id="calculadora" className="py-24 px-6 bg-white">
+      {/* --- Section 1: Calculator (High Conversion Placement) --- */}
+      <section id="calculadora" className="py-12 px-6 bg-white">
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl mb-4">Calculadora Interativa</h2>
-            <p className="text-gray-600">Estime o valor que você pode ter direito a receber de volta.</p>
-          </div>
-
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
             {/* Form */}
-            <div className="card">
+            <div className="card shadow-xl border-t-4 border-brand-amber">
               <div className="space-y-6">
                 <div>
                   <label htmlFor="data" className={errors.includes('dataPagamento') ? 'text-red-500' : ''}>
@@ -450,32 +351,16 @@ export default function App() {
                   </motion.div>
                 )}
 
-                {tipoTransacao === 'sfh_financed' && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                  >
-                    <label htmlFor="financiado">Valor financiado (R$)</label>
-                    <input 
-                      type="number" 
-                      id="financiado" 
-                      placeholder="Ex: 200000"
-                      value={valorFinanciado}
-                      onChange={(e) => setValorFinanciado(e.target.value === '' ? '' : Number(e.target.value))}
-                    />
-                  </motion.div>
-                )}
-
                 <button 
                   onClick={calculate}
                   disabled={isCalculating}
-                  className="w-full btn-primary flex justify-center items-center gap-2 mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full btn-primary flex justify-center items-center gap-2 mt-4 disabled:opacity-50 disabled:cursor-not-allowed py-5 text-lg"
                 >
                   {isCalculating ? (
                     <>Processando...</>
                   ) : (
                     <>
-                      <Calculator size={18} /> Calcular Estimativa
+                      <Calculator size={20} /> Calcular minha restituição
                     </>
                   )}
                 </button>
@@ -483,7 +368,7 @@ export default function App() {
             </div>
 
             {/* Results */}
-            <div className="relative">
+            <div className="relative" ref={resultsRef}>
               <AnimatePresence mode="wait">
                 {result ? (
                   <motion.div
@@ -491,7 +376,7 @@ export default function App() {
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
-                    className="card border-brand-amber/30 h-full flex flex-col justify-between"
+                    className="card border-brand-amber/30 h-full flex flex-col justify-between shadow-2xl"
                   >
                     {result.diferenca <= 0 ? (
                       <div className="text-center py-12 px-6">
@@ -501,8 +386,7 @@ export default function App() {
                             <h3 className="text-xl text-brand-graphite mb-4">Nova Lei em Vigor</h3>
                             <p className="text-gray-600 text-sm leading-relaxed">
                               Seu pagamento foi realizado após 01/01/2026, sob a vigência da <strong>LC 696/2025</strong>. 
-                              Nesta data, a prefeitura já havia adequado a cobrança às decisões do STJ, utilizando o valor da operação como base. 
-                              Não há valores retroativos a restituir por este motivo.
+                              Nesta data, a prefeitura já havia adequado a cobrança às decisões do STJ.
                             </p>
                           </>
                         ) : result.baseUtilizada === 'menor' ? (
@@ -510,8 +394,8 @@ export default function App() {
                             <AlertCircle className="mx-auto text-amber-500 mb-6" size={56} />
                             <h3 className="text-xl text-brand-graphite mb-4">Pagamento Abaixo do Padrão</h3>
                             <p className="text-gray-600 text-sm leading-relaxed">
-                              O valor pago ({formatCurrency(result.itbiCobrado)}) é inferior ao que seria devido com base no valor da operação ({formatCurrency(result.itbiCorreto)}). 
-                              Neste caso, não há valores a restituir, pois você já pagou menos do que o padrão legal.
+                              O valor pago ({formatCurrency(result.itbiCobrado)}) é inferior ao que seria devido com base no valor da operação. 
+                              Não há valores a restituir.
                             </p>
                           </>
                         ) : (
@@ -519,8 +403,7 @@ export default function App() {
                             <CheckCircle2 className="mx-auto text-green-500 mb-6" size={56} />
                             <h3 className="text-xl text-brand-graphite mb-4">Tudo em Ordem</h3>
                             <p className="text-gray-600 text-sm leading-relaxed">
-                              Identificamos que o seu ITBI foi calculado corretamente com base no valor real da operação. 
-                              Você não foi cobrado pela PGV ilegal e, portanto, não possui valores a restituir.
+                              Identificamos que o seu ITBI foi calculado corretamente com base no valor real da operação.
                             </p>
                           </>
                         )}
@@ -538,52 +421,51 @@ export default function App() {
                           <h3 className="text-xl">Resultado Estimado</h3>
                         </div>
 
-                      <div className="space-y-4 mb-8">
-                        <div className="flex justify-between text-sm border-b border-gray-100 pb-2">
-                          <span className="text-gray-500">ITBI pago:</span>
-                          <span className="font-medium">{formatCurrency(result.itbiCobrado)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm border-b border-gray-100 pb-2">
-                          <span className="text-gray-500">ITBI que deveria ser pago:</span>
-                          <span className="font-medium">{formatCurrency(result.itbiCorreto)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm border-b border-gray-100 pb-2">
-                          <span className="text-gray-500">Base de cálculo utilizada:</span>
-                          <span className={`font-medium ${result.baseUtilizada === 'pgv' ? 'text-red-500' : 'text-green-500'}`}>
-                            {result.baseUtilizada === 'pgv' ? 'PGV (Ilegal)' : 'Valor da Operação'}
-                          </span>
-                        </div>
-                        {result.baseUtilizada === 'pgv' && (
+                        <div className="space-y-4 mb-8">
                           <div className="flex justify-between text-sm border-b border-gray-100 pb-2">
-                            <span className="text-gray-500">PGV Estimada:</span>
-                            <span className="font-medium">{formatCurrency(result.pgvEstimado)}</span>
+                            <span className="text-gray-500">ITBI pago:</span>
+                            <span className="font-medium">{formatCurrency(result.itbiCobrado)}</span>
                           </div>
-                        )}
-                        <div className="flex justify-between items-center pt-2">
-                          <span className="text-brand-graphite font-bold">Valor a restituir:</span>
-                          <span className="text-xl font-bold text-brand-amber">{formatCurrency(result.diferenca)}</span>
+                          <div className="flex justify-between text-sm border-b border-gray-100 pb-2">
+                            <span className="text-gray-500">ITBI que deveria ser pago:</span>
+                            <span className="font-medium">{formatCurrency(result.itbiCorreto)}</span>
+                          </div>
+                          <div className="flex justify-between text-sm border-b border-gray-100 pb-2">
+                            <span className="text-gray-500">Base de cálculo utilizada:</span>
+                            <span className={`font-medium ${result.baseUtilizada === 'pgv' ? 'text-red-500' : 'text-green-500'}`}>
+                              {result.baseUtilizada === 'pgv' ? 'PGV (Ilegal)' : 'Valor da Operação'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center pt-2">
+                            <span className="text-brand-graphite font-bold">Valor a restituir:</span>
+                            <span className="text-xl font-bold text-brand-amber">{formatCurrency(result.diferenca)}</span>
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="bg-brand-cream p-6 rounded-sm mb-8 text-center">
-                        <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Valor Estimado com Correção</p>
-                        <p className="text-3xl font-bold text-brand-graphite">
-                          {formatCurrency(result.valorCorrigido)}
-                        </p>
-                        <p className="text-[10px] text-gray-400 mt-2 italic text-balance">
-                          *Apenas para referência (Selic estimada). O valor a restituir é {formatCurrency(result.diferenca)} sem juros.
-                        </p>
-                      </div>
+                        <div className="bg-brand-cream p-6 rounded-sm mb-8 text-center border border-brand-amber/20">
+                          <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Valor Estimado com Correção</p>
+                          <p className="text-4xl font-bold text-brand-graphite">
+                            {formatCurrency(result.valorCorrigido)}
+                          </p>
+                          <p className="text-[10px] text-gray-400 mt-2 italic">
+                            *Apenas para referência (Selic estimada).
+                          </p>
+                        </div>
 
-                        <div className="space-y-3">
+                        <div className="space-y-4">
                           <div className={`flex items-center gap-2 text-sm ${result.statusColor}`}>
                             <Clock size={16} />
                             <span>{result.statusPrazo}</span>
                           </div>
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <Calendar size={16} />
-                            <span>Data-limite para ajuizar: <strong>{result.dataLimite}</strong></span>
-                          </div>
+                          
+                          <a 
+                            href={`https://wa.me/5519993598714?text=Ol%C3%A1%2C%20Dr.%20Matheus.%20Acabei%20de%20usar%20sua%20calculadora%20e%20vi%20que%20tenho%20direito%20a%20uma%20restitui%C3%A7%C3%A3o%20estimada%20de%20${formatCurrency(result.valorCorrigido)}.%20Gostaria%20de%20saber%20como%20proceder.`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full bg-[#25D366] text-white flex justify-center items-center gap-3 py-4 rounded-sm font-bold hover:bg-[#128C7E] transition-colors shadow-lg"
+                          >
+                            <MessageCircle size={20} /> Falar com um especialista
+                          </a>
                         </div>
                       </div>
                     )}
@@ -597,13 +479,80 @@ export default function App() {
                     key="empty"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="card border-dashed border-gray-300 h-full flex flex-col items-center justify-center text-center text-gray-400"
+                    className="card border-dashed border-gray-300 h-full flex flex-col items-center justify-center text-center text-gray-400 min-h-[400px]"
                   >
                     <Calculator size={48} className="mb-4 opacity-20" />
-                    <p>Preencha os dados ao lado para visualizar sua estimativa.</p>
+                    <p className="max-w-[200px]">Preencha os dados ao lado para visualizar sua estimativa de restituição.</p>
                   </motion.div>
                 )}
               </AnimatePresence>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* --- Section 2: Visual Deadline --- */}
+      <section className="py-16 px-6 bg-brand-cream">
+        <div className="max-w-4xl mx-auto text-center">
+          <h3 className="text-2xl mb-4">A janela que se fecha</h3>
+          <p className="text-gray-600 mb-10">A janela prescricional para recuperar o ITBI pago a mais está encolhendo.</p>
+          
+          <div className="relative h-4 bg-gray-200 rounded-full overflow-hidden mb-4">
+            <motion.div 
+              initial={{ width: 0 }}
+              animate={{ width: `${windowPrescription.percentage}%` }}
+              transition={{ duration: 2, ease: "easeOut" }}
+              className="absolute top-0 left-0 h-full bg-brand-amber"
+            />
+          </div>
+          
+          <div className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-widest">
+            <span>Abril/2021</span>
+            <span className="text-brand-amber">Hoje ({HOJE.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })})</span>
+            <span>Dezembro/2025</span>
+          </div>
+          
+          <p className="mt-8 text-sm text-gray-500">
+            *Pagamentos realizados há mais de 5 anos já prescreveram.
+          </p>
+        </div>
+      </section>
+
+      {/* --- Section 3: Explanation (Authority Section) --- */}
+      <section className="py-24 px-6 bg-white">
+        <div className="max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-12">
+            <div className="md:col-span-4">
+              <div className="sticky top-12 space-y-6">
+                <h2 className="text-3xl text-brand-graphite">Por que você tem esse direito?</h2>
+                <div className="relative">
+                  <img 
+                    src="https://lh3.googleusercontent.com/d/10ohuYlo8Uf3BT3AfaAmgjaVLc6of0Pjo" 
+                    alt="Matheus Ximendes" 
+                    className="w-24 h-24 rounded-full object-cover border-2 border-brand-amber"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="mt-4">
+                    <p className="font-serif text-brand-graphite font-bold">Matheus Ximendes</p>
+                    <p className="text-brand-amber text-xs font-bold">OAB/SP 542.856</p>
+                    <p className="text-gray-500 text-[10px] uppercase tracking-wider mt-1 font-medium">Especialista em Direito Tributário</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="md:col-span-8 space-y-8 text-gray-700 leading-relaxed">
+              <p>
+                Em São José dos Campos, a <strong>LC 383/09</strong> determinava que o ITBI fosse pago sobre o maior valor entre o valor da venda e a Planta Genérica de Valores (PGV).
+              </p>
+              <div className="p-6 bg-brand-cream border-l-4 border-brand-amber italic">
+                "O STJ definiu (Tema 1.113) que a base de cálculo deve ser o valor real da operação declarado pelo comprador, e não uma tabela arbitrária da prefeitura."
+              </div>
+              <p>
+                A nova <strong>LC 696/2025</strong> corrigiu esse erro, mas ela só entrou em vigor em 01/01/2026. Isso significa que todos os pagamentos feitos antes dessa data podem ter sido cobrados a mais de forma ilegal.
+              </p>
+              <p>
+                <strong>O prazo para recuperar esse dinheiro é de 5 anos.</strong> Se você não entrar com o pedido judicial dentro desse prazo, o direito prescreve e o dinheiro fica definitivamente com o Município.
+              </p>
             </div>
           </div>
         </div>
