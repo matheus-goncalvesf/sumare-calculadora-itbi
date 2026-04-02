@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 // --- Types ---
-type TransactionType = 'standard' | 'sfh_financed' | 'first_property';
+type TransactionType = 'standard' | 'sfh_financed';
 
 interface CalculationResult {
   itbiCobrado: number;
@@ -29,7 +29,6 @@ interface CalculationResult {
   dataLimite: string;
   pgvEstimado: number;
   baseUtilizada: 'escritura' | 'pgv' | 'menor';
-  isNovaLei?: boolean;
 }
 
 export default function App() {
@@ -77,24 +76,14 @@ export default function App() {
 
   // --- Constants ---
   const HOJE = new Date();
-  const SELIC_PROXY = 0.006; // 0.6% ao mês
+  const SELIC_PROXY = 0.01; // 1% ao mês estimado
 
   // --- Deadline Logic ---
   const windowPrescription = useMemo(() => {
-    // A janela de pagamentos elegíveis (5 anos antes da nova lei)
-    const START_WINDOW = new Date(2021, 0, 1); // 01/01/2021
-    const END_WINDOW = new Date(2025, 11, 31); // 31/12/2025
-    
     // A data que está prescrevendo exatamente hoje (5 anos atrás)
     const prescriptionLine = new Date(HOJE.getFullYear() - 5, HOJE.getMonth(), HOJE.getDate());
     
-    const totalDuration = END_WINDOW.getTime() - START_WINDOW.getTime();
-    const elapsed = prescriptionLine.getTime() - START_WINDOW.getTime();
-    
-    // Posição do marcador sobre a janela 2021-2026
-    const prescribedPercentage = Math.min(100, Math.max(0, (elapsed / totalDuration) * 100));
-    
-    return { prescribedPercentage, prescriptionLine };
+    return { prescriptionLine };
   }, []);
 
   // --- Calculator Logic ---
@@ -119,30 +108,10 @@ export default function App() {
     // Simulate a small delay for better UX feedback
     setTimeout(() => {
       const pgDate = new Date(dataPagamento);
-      const dataCorteNovaLei = new Date(2025, 11, 31); // 31/12/2025
 
-      // Se o pagamento foi após a entrada em vigor da nova lei
-      if (pgDate > dataCorteNovaLei) {
-        setResult({
-          itbiCobrado: Number(valorItbiPago),
-          itbiCorreto: Number(valorItbiPago),
-          diferenca: 0,
-          valorCorrigido: 0,
-          statusPrazo: "🟢 Pagamento realizado sob a nova LC 696/2025",
-          statusColor: "text-green-600",
-          diasRestantes: 1825, // 5 anos
-          dataLimite: new Date(pgDate.getFullYear() + 5, pgDate.getMonth(), pgDate.getDate()).toLocaleDateString('pt-BR'),
-          pgvEstimado: Number(valorEscritura),
-          baseUtilizada: 'escritura',
-          isNovaLei: true
-        });
-        setIsCalculating(false);
-        return;
-      }
-
-      // Alíquotas e Isenções (LC 383/09)
-      const aliquotaPadrao = 0.02;
-      const aliquotaIsenta = 0.005; // 2% * 25% = 0.5% (isenção de 75%)
+      // Alíquotas e Isenções Sumaré
+      const aliquotaPadrao = 0.02; // 2%
+      const aliquotaSFH = 0.01; // 1% sobre parte financiada
 
       let itbiCorreto = 0;
 
@@ -150,10 +119,7 @@ export default function App() {
       if (tipoTransacao === 'sfh_financed') {
         const baseFinanciadaCorreta = vFinanciado;
         const baseEntradaCorreta = vEscritura - vFinanciado;
-        itbiCorreto = (baseFinanciadaCorreta * aliquotaIsenta) + (baseEntradaCorreta * aliquotaPadrao);
-      } else if (tipoTransacao === 'first_property') {
-        const teto = 50000;
-        itbiCorreto = vEscritura <= teto ? vEscritura * aliquotaIsenta : vEscritura * aliquotaPadrao;
+        itbiCorreto = (baseFinanciadaCorreta * aliquotaSFH) + (baseEntradaCorreta * aliquotaPadrao);
       } else {
         itbiCorreto = vEscritura * aliquotaPadrao;
       }
@@ -165,13 +131,12 @@ export default function App() {
       if (vItbiPago > itbiCorreto + 0.1) { 
         baseUtilizada = 'pgv';
         if (tipoTransacao === 'sfh_financed') {
-          const proporcaoFinanciada = vFinanciado / vEscritura;
-          const aliquotaMedia = (proporcaoFinanciada * aliquotaIsenta) + ((1 - proporcaoFinanciada) * aliquotaPadrao);
-          pgvEstimado = vItbiPago / aliquotaMedia;
-        } else if (tipoTransacao === 'first_property') {
-          const teto = 50000;
-          const aliquotaEfetiva = vEscritura <= teto ? aliquotaIsenta : aliquotaPadrao;
-          pgvEstimado = vItbiPago / aliquotaEfetiva;
+          // A prefeitura acata o valor fixo financiado (que vem do contrato do banco) e 
+          // joga todo o aumento da Pauta de Valores para a parcela restante (alíquota padrao 2%).
+          const itbiFinanciado = vFinanciado * aliquotaSFH;
+          const itbiSobrandoParaEntrada = vItbiPago - itbiFinanciado;
+          const baseSobrandoEstimada = itbiSobrandoParaEntrada / aliquotaPadrao;
+          pgvEstimado = vFinanciado + baseSobrandoEstimada;
         } else {
           pgvEstimado = vItbiPago / aliquotaPadrao;
         }
@@ -195,18 +160,22 @@ export default function App() {
         statusPrazo = "⚠️ Prazo encerrado — este pagamento já prescreveu";
         statusColor = "text-red-600";
       } else if (diasRestantes <= 180) {
-        statusPrazo = `🔴 Urgente — restam ${diasRestantes} dias para agir`;
+        statusPrazo = `🔴 Urgente — prazo de prescrição próximo`;
         statusColor = "text-red-500 font-bold";
       } else if (diasRestantes <= 365) {
-        statusPrazo = `🟡 Atenção — restam menos de 1 ano`;
+        statusPrazo = `🟡 Atenção — menos de 1 ano para o prazo final`;
         statusColor = "text-amber-600";
       } else {
-        statusPrazo = `🟢 Dentro do prazo — ${diasRestantes} dias restantes`;
+        statusPrazo = `🟢 Dentro do prazo para restituição`;
         statusColor = "text-green-600";
       }
 
-      // Correção Selic (Proxy: 0.6% ao mês)
-      const diffMeses = (HOJE.getFullYear() - pgDate.getFullYear()) * 12 + (HOJE.getMonth() - pgDate.getMonth());
+      // Correção Selic + Juros Mora (Proxy: 1% ao mês)
+      const dateParts = dataPagamento.split('-');
+      const pgYear = parseInt(dateParts[0], 10);
+      const pgMonth = parseInt(dateParts[1], 10) - 1; // zero indexed
+      
+      const diffMeses = (HOJE.getFullYear() - pgYear) * 12 + (HOJE.getMonth() - pgMonth);
       const fator = Math.pow(1 + SELIC_PROXY, Math.max(0, diffMeses));
       const valorCorrigido = Math.max(0, diferenca) * fator;
 
@@ -249,10 +218,10 @@ export default function App() {
               Direito Imobiliário & Tributário
             </span>
             <h1 className="text-4xl md:text-6xl text-brand-graphite leading-tight mb-6">
-              Recupere o ITBI pago a mais em <span className="italic">São José dos Campos</span>.
+              Recupere o ITBI pago a mais em <span className="italic">Sumaré-SP</span>.
             </h1>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed mb-8">
-              Use nossa calculadora e descubra em segundos se você tem direito à restituição do imposto pago até 31/12/2025.
+              Use nossa calculadora e descubra em segundos se você tem direito à restituição do imposto pago nos últimos 5 anos.
             </p>
           </motion.div>
         </div>
@@ -342,8 +311,7 @@ export default function App() {
                     onChange={(e) => setTipoTransacao(e.target.value as TransactionType)}
                   >
                     <option value="standard">Compra padrão (Alíquota 2%)</option>
-                    <option value="sfh_financed">Financiamento SFH (Art. 9º, II)</option>
-                    <option value="first_property">Único imóvel abaixo do teto (Art. 9º, I)</option>
+                    <option value="sfh_financed">Financiamento SFH (1% sobre o financiado, 2% restante)</option>
                   </select>
                 </div>
 
@@ -353,17 +321,7 @@ export default function App() {
                     animate={{ opacity: 1, height: 'auto' }}
                     className="p-3 bg-blue-50 text-blue-800 text-xs rounded-sm mb-4"
                   >
-                    <p><strong>O que é SFH?</strong> É o Sistema Financeiro de Habitação. Geralmente usado em financiamentos da Caixa (como o <strong>Minha Casa Minha Vida</strong>) ou quando você utiliza o seu <strong>FGTS</strong> na compra. Possui alíquota reduzida de 0,5% sobre o valor financiado.</p>
-                  </motion.div>
-                )}
-
-                {tipoTransacao === 'first_property' && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    className="p-3 bg-blue-50 text-blue-800 text-xs rounded-sm mb-4"
-                  >
-                    <p><strong>Nota:</strong> Isenção de 75% (alíquota efetiva 0,5%) se o valor for até R$ 50.000 (LC 383/09).</p>
+                    <p><strong>O que é SFH?</strong> É o Sistema Financeiro de Habitação. Geralmente usado em financiamentos da Caixa (como o <strong>Minha Casa Minha Vida</strong>) ou quando você utiliza o seu <strong>FGTS</strong> na compra. Possui alíquota reduzida de 1% sobre o valor financiado.</p>
                   </motion.div>
                 )}
 
@@ -396,16 +354,7 @@ export default function App() {
                   >
                     {result.diferenca <= 0 ? (
                       <div className="text-center py-12 px-6">
-                        {result.isNovaLei ? (
-                          <>
-                            <CheckCircle2 className="mx-auto text-green-500 mb-6" size={56} />
-                            <h3 className="text-xl text-brand-graphite mb-4">Nova Lei em Vigor</h3>
-                            <p className="text-gray-600 text-sm leading-relaxed">
-                              Seu pagamento foi realizado após 01/01/2026, sob a vigência da <strong>LC 696/2025</strong>. 
-                              Nesta data, a prefeitura já havia adequado a cobrança às decisões do STJ.
-                            </p>
-                          </>
-                        ) : result.baseUtilizada === 'menor' ? (
+                        {result.baseUtilizada === 'menor' ? (
                           <>
                             <AlertCircle className="mx-auto text-amber-500 mb-6" size={56} />
                             <h3 className="text-xl text-brand-graphite mb-4">Pagamento Abaixo do Padrão</h3>
@@ -450,10 +399,16 @@ export default function App() {
                           <div className="flex justify-between text-sm border-b border-gray-100 pb-2">
                             <span className="text-gray-500">Base de cálculo utilizada:</span>
                             <span className={`font-medium ${result.baseUtilizada === 'pgv' ? 'text-red-500' : 'text-green-500'}`}>
-                              {result.baseUtilizada === 'pgv' ? 'PGV (Ilegal)' : 'Valor da Operação'}
+                              {result.baseUtilizada === 'pgv' ? 'Pauta de Valores (Ilegal)' : 'Valor da Operação'}
                             </span>
                           </div>
-                          <div className="flex justify-between items-center pt-2">
+                          {result.baseUtilizada === 'pgv' && (
+                            <div className="flex justify-between text-sm border-b border-gray-100 pb-2 bg-red-50 p-2 rounded -mx-2 px-2 mt-2">
+                              <span className="text-red-700 font-medium">↳ Base cobrada estimada da Prefeitura:</span>
+                              <span className="font-bold text-red-700">{formatCurrency(result.pgvEstimado)}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between items-center pt-4">
                             <span className="text-brand-graphite font-bold">Valor a restituir:</span>
                             <span className="text-xl font-bold text-brand-amber">{formatCurrency(result.diferenca)}</span>
                           </div>
@@ -476,7 +431,7 @@ export default function App() {
                           </div>
                           
                           <a 
-                            href={`https://wa.me/5519993598714?text=Ol%C3%A1%2C%20Matheus.%20Acabei%20de%20usar%20sua%20calculadora%20de%20ITBI%20de%20S%C3%A3o%20Jos%C3%A9%20dos%20Campos%20e%20encontrei%20uma%20estimativa%20de%20restitui%C3%A7%C3%A3o%20de%20${formatCurrency(result.valorCorrigido)}.%20Gostaria%20de%20saber%20como%20proceder.`}
+                            href={`https://wa.me/5519993598714?text=Ol%C3%A1%2C%20Matheus.%20Acabei%20de%20usar%20sua%20calculadora%20de%20ITBI%20de%20Sumar%C3%A9%20e%20encontrei%20uma%20estimativa%20de%20restitui%C3%A7%C3%A3o%20de%20${formatCurrency(result.valorCorrigido)}.%20Gostaria%20de%20saber%20como%20proceder.`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="w-full bg-[#25D366] text-white flex justify-center items-center gap-3 py-4 rounded-sm font-bold hover:bg-[#128C7E] transition-colors shadow-lg"
@@ -511,58 +466,29 @@ export default function App() {
       {/* --- Section 2: Visual Deadline --- */}
       <section className="py-20 px-6 bg-brand-cream border-y border-gray-100">
         <div className="max-w-4xl mx-auto text-center">
-          <h3 className="font-serif text-2xl text-brand-graphite mb-4">Janela de Oportunidade</h3>
+          <h3 className="font-serif text-2xl text-brand-graphite mb-4">Atenção ao Prazo de Prescrição</h3>
           <p className="text-gray-600 mb-12 max-w-2xl mx-auto">
-            A barra representa os pagamentos feitos entre 2021 e 2026. 
-            O marcador indica a <strong>data limite</strong>: pagamentos feitos antes dela já prescreveram.
+            A restituição do ITBI só pode ser solicitada referente a pagamentos realizados nos últimos <strong>5 anos</strong>. Pagamentos anteriores a isso prescrevem e o valor fica definitivamente para o Município.
           </p>
           
-          <div className="relative pt-12 pb-8">
-            {/* Moving Label & Needle */}
-            <motion.div 
-              initial={{ left: 0 }}
-              animate={{ left: `${windowPrescription.prescribedPercentage}%` }}
-              transition={{ duration: 2, ease: "circOut" }}
-              className="absolute top-0 -translate-x-1/2 flex flex-col items-center z-20"
-            >
-              <div className="bg-red-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-sm shadow-xl whitespace-nowrap mb-1 flex flex-col items-center">
-                <span className="opacity-80 font-normal text-[8px] uppercase tracking-tighter">Prescrevendo hoje:</span>
-                {windowPrescription.prescriptionLine.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+          <div className="flex flex-col items-center">
+            <div className="w-full max-w-2xl h-4 bg-gray-200 rounded-full flex overflow-hidden shadow-inner mb-4">
+              <div className="bg-red-500 w-1/4 h-full flex justify-center items-center text-[10px] text-white font-bold" title="Mais de 5 anos atrás (Prescrito)">
+                PRESCRITO
               </div>
-              <div className="w-0.5 h-10 bg-red-600 relative">
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2 h-2 bg-red-600 rounded-full border-2 border-white" />
-              </div>
-            </motion.div>
-
-            {/* The Bar Container (Solid Amber) */}
-            <div className="relative h-10 bg-brand-amber rounded-sm border-2 border-brand-graphite/10 shadow-inner overflow-hidden">
-              {/* Labels inside the bar */}
-              <div className="absolute inset-0 flex justify-center items-center pointer-events-none">
-                <span className="text-[10px] font-bold text-brand-graphite/30 uppercase tracking-[0.2em]">Pagamentos Elegíveis (2021-2026)</span>
-              </div>
-
-              {/* Wall Indicator (The Stop) */}
-              <div className="absolute top-0 right-0 h-full w-3 bg-brand-graphite flex items-center justify-center" title="Parede: Nova Lei 01/01/2026">
-                <div className="w-[1px] h-1/2 bg-white/20" />
+              <div className="bg-green-500 w-3/4 h-full flex justify-center items-center text-[10px] text-white font-bold" title="Últimos 5 anos (Elegível)">
+                ELEGÍVEL (ÚLTIMOS 5 ANOS)
               </div>
             </div>
-          </div>
-          
-          <div className="flex justify-between text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-2">
-            <div className="text-left">
-              <p className="text-gray-600">01/01/2021</p>
+            
+            <div className="w-full max-w-2xl flex justify-between text-xs text-brand-graphite font-medium">
+              <span className="text-gray-400">Passado distante</span>
+              <span className="flex flex-col items-center relative text-red-600 font-bold">
+                <span className="w-0.5 h-4 bg-red-600 relative -top-[14px]"></span>
+                <span className="relative -top-2">Prescrevendo Hoje: {windowPrescription.prescriptionLine.toLocaleDateString('pt-BR')}</span>
+              </span>
+              <span>Hoje ({HOJE.toLocaleDateString('pt-BR')})</span>
             </div>
-            <div className="text-right">
-              <p className="text-brand-graphite">31/12/2025</p>
-              <p className="font-normal normal-case text-[9px]">Limite da Nova Lei</p>
-            </div>
-          </div>
-          
-          <div className="mt-12 p-4 bg-white/50 rounded-sm border border-gray-100 inline-block">
-            <p className="text-xs text-gray-500 leading-relaxed">
-              Tudo à <strong>esquerda</strong> do marcador vermelho já foi perdido para a prescrição. 
-              Tudo à <strong>direita</strong> ainda pode ser recuperado judicialmente.
-            </p>
           </div>
         </div>
       </section>
@@ -574,14 +500,14 @@ export default function App() {
             <div className="md:col-span-4">
               <div className="sticky top-12 space-y-6">
                 <h2 className="text-3xl text-brand-graphite">Por que você tem esse direito?</h2>
-                <div className="relative">
+                <div className="relative flex flex-col md:items-start items-center">
                   <img 
                     src="https://lh3.googleusercontent.com/d/10ohuYlo8Uf3BT3AfaAmgjaVLc6of0Pjo" 
                     alt="Matheus Ximendes" 
-                    className="w-24 h-24 rounded-full object-cover border-2 border-brand-amber"
+                    className="w-36 h-36 rounded-full object-cover border-4 border-brand-amber shadow-lg"
                     referrerPolicy="no-referrer"
                   />
-                  <div className="mt-4">
+                  <div className="mt-6 md:text-left text-center">
                     <p className="font-serif text-brand-graphite font-bold">Matheus Ximendes</p>
                     <p className="text-brand-amber text-xs font-bold">OAB/SP 542.856</p>
                     <p className="text-gray-500 text-[10px] uppercase tracking-wider mt-1 font-medium">Especialista em Direito Tributário</p>
@@ -591,13 +517,13 @@ export default function App() {
             </div>
             <div className="md:col-span-8 space-y-8 text-gray-700 leading-relaxed">
               <p>
-                Em São José dos Campos, a <strong>LC 383/09</strong> determinava que o ITBI fosse pago sobre o maior valor entre o valor da venda e a Planta Genérica de Valores (PGV).
+                As leis da cidade de Sumaré, através do <strong>Código Tributário Municipal (CTM, em especial o Art. 188)</strong>, estipulam que o ITBI será cobrado com base no Valor Venal ou no valor estipulado pela Pauta de Valores elaborada pela prefeitura, não permitindo que a cobrança seja em valor inferior a esta Pauta em nenhuma hipótese.
               </p>
               <div className="p-6 bg-brand-cream border-l-4 border-brand-amber italic">
-                "O STJ definiu (Tema 1.113) que a base de cálculo deve ser o valor real da operação declarado pelo comprador, e não uma tabela arbitrária da prefeitura."
+                "Essa imposição de base de cálculo mínima viola diretamente o entendimento do STJ (Tema 1.113), que definiu que a base de cálculo deve ser o valor real da operação declarado pelo comprador, e não uma tabela ou pauta arbitrária da prefeitura."
               </div>
               <p>
-                A nova <strong>LC 696/2025</strong> corrigiu esse erro, mas ela só entrou em vigor em 01/01/2026. Isso significa que todos os pagamentos feitos antes dessa data podem ter sido cobrados a mais de forma ilegal.
+                A Prefeitura de Sumaré continua utilizando essa Pauta de Valores. Isso significa que muito provavelmente, se você realizou o pagamento baseado na base estipulada pela prefeitura, você pagou imposto a mais.
               </p>
               <p>
                 <strong>O prazo para recuperar esse dinheiro é de 5 anos.</strong> Se você não entrar com o pedido judicial dentro desse prazo, o direito prescreve e o dinheiro fica definitivamente com o Município.
@@ -621,7 +547,7 @@ export default function App() {
               <span>Contato por e-mail</span>
             </a>
             <a 
-              href="https://wa.me/5519993598714?text=Ol%C3%A1%2C%20vim%20de%20sua%20calculadora%20de%20ITBI%20em%20S%C3%A3o%20Jos%C3%A9%20Dos%20Campos.%20Gostaria%20de%20tirar%20algumas%20d%C3%BAvidas." 
+              href="https://wa.me/5519993598714?text=Ol%C3%A1%2C%20vim%20de%20sua%20calculadora%20de%20ITBI%20em%20Sumar%C3%A9.%20Gostaria%20de%20tirar%20algumas%20d%C3%BAvidas." 
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-3 px-8 py-4 border border-white/20 hover:bg-white/10 transition-colors rounded-sm"
@@ -650,7 +576,7 @@ export default function App() {
 
       {/* --- Floating WhatsApp Button --- */}
       <motion.a
-        href="https://wa.me/5519993598714?text=Ol%C3%A1%2C%20vim%20de%20sua%20calculadora%20de%20ITBI%20em%20S%C3%A3o%20Jos%C3%A9%20Dos%20Campos.%20Gostaria%20de%20tirar%20algumas%20d%C3%BAvidas."
+        href="https://wa.me/5519993598714?text=Ol%C3%A1%2C%20vim%20de%20sua%20calculadora%20de%20ITBI%20em%20Sumar%C3%A9.%20Gostaria%20de%20tirar%20algumas%20d%C3%BAvidas."
         target="_blank"
         rel="noopener noreferrer"
         initial={{ opacity: 0, scale: 0.5, y: 20 }}
