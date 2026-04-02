@@ -32,6 +32,7 @@ interface CalculationResult {
   dataLimite: string;
   pgvEstimado: number;
   baseUtilizada: 'escritura' | 'pgv' | 'menor';
+  isNovaLei?: boolean;
 }
 
 export default function App() {
@@ -115,6 +116,26 @@ export default function App() {
     // Simulate a small delay for better UX feedback
     setTimeout(() => {
       const pgDate = new Date(dataPagamento);
+      const dataCorteNovaLei = new Date(2025, 11, 31); // 31/12/2025
+
+      // Se o pagamento foi após a entrada em vigor da nova lei
+      if (pgDate > dataCorteNovaLei) {
+        setResult({
+          itbiCobrado: Number(valorItbiPago),
+          itbiCorreto: Number(valorItbiPago), // Assume correto sob a nova lei para fins de simulação
+          diferenca: 0,
+          valorCorrigido: 0,
+          statusPrazo: "🟢 Pagamento realizado sob a nova LC 696/2025",
+          statusColor: "text-green-600",
+          diasRestantes: 1825, // 5 anos
+          dataLimite: new Date(pgDate.getFullYear() + 5, pgDate.getMonth(), pgDate.getDate()).toLocaleDateString('pt-BR'),
+          pgvEstimado: Number(valorEscritura),
+          baseUtilizada: 'escritura',
+          isNovaLei: true
+        });
+        setIsCalculating(false);
+        return;
+      }
 
       // Alíquotas e Isenções (LC 383/09)
       const aliquotaPadrao = 0.02;
@@ -225,11 +246,19 @@ export default function App() {
               </h1>
               <p className="text-lg text-gray-600 max-w-2xl leading-relaxed mb-10">
                 Uma decisão histórica do STJ declarou ilegal a forma como a prefeitura calculava o imposto. 
-                Se você comprou um imóvel entre 2020 e 2025, tem direito a receber a diferença de volta.
+                Se você comprou um imóvel até 31/12/2025, tem direito a receber a diferença de volta.
               </p>
               <div className="flex flex-wrap gap-4">
                 <a href="#calculadora" className="btn-primary flex items-center gap-2">
                   Calcular minha restituição <ArrowRight size={18} />
+                </a>
+                <a 
+                  href="https://wa.me/5519993598714?text=Ol%C3%A1%2C%20vim%20de%20sua%20calculadora%20de%20ITBI%20em%20S%C3%A3o%20Jos%C3%A9%20Dos%20Campos.%20Gostaria%20de%20tirar%20algumas%20d%C3%BAvidas." 
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-6 py-3 border border-brand-graphite/20 text-brand-graphite font-medium hover:bg-brand-graphite hover:text-white transition-all duration-300"
+                >
+                  <MessageCircle size={18} /> Falar com Especialista
                 </a>
               </div>
             </motion.div>
@@ -277,7 +306,7 @@ export default function App() {
                 A própria Prefeitura de SJC reconheceu isso publicamente em agosto de 2025, ao enviar à Câmara o projeto de reforma, declarando que a mudança "adequa o Município às decisões judiciais proferidas sobre o tema".
               </p>
               <p>
-                A nova lei (<strong>PLC 21/2025</strong>) foi aprovada em setembro de 2025 e corrigiu o sistema — mas só vale para o futuro. Quem pagou ITBI sobre a PGV entre 2020 e 2025 tem direito à repetição de indébito — devolução da diferença corrigida pela taxa Selic.
+                A nova lei (<strong>LC 696/2025</strong>) foi aprovada em setembro de 2025 e corrigiu o sistema — mas só entrou em vigor em 01/01/2026. Quem pagou ITBI sobre a PGV até 31/12/2025 tem direito à repetição de indébito — devolução da diferença corrigida pela taxa Selic.
               </p>
               <div className="flex items-start gap-4 p-4 bg-red-50 text-red-800 rounded-sm">
                 <AlertCircle className="shrink-0 mt-1" size={20} />
@@ -306,9 +335,9 @@ export default function App() {
           </div>
           
           <div className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-widest">
-            <span>Março/2020</span>
+            <span>Abril/2021</span>
             <span className="text-brand-amber">Hoje ({HOJE.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })})</span>
-            <span>Março/2025</span>
+            <span>Dezembro/2025</span>
           </div>
           
           <p className="mt-8 text-sm text-gray-500">
@@ -466,7 +495,17 @@ export default function App() {
                   >
                     {result.diferenca <= 0 ? (
                       <div className="text-center py-12 px-6">
-                        {result.baseUtilizada === 'menor' ? (
+                        {result.isNovaLei ? (
+                          <>
+                            <CheckCircle2 className="mx-auto text-green-500 mb-6" size={56} />
+                            <h3 className="text-xl text-brand-graphite mb-4">Nova Lei em Vigor</h3>
+                            <p className="text-gray-600 text-sm leading-relaxed">
+                              Seu pagamento foi realizado após 01/01/2026, sob a vigência da <strong>LC 696/2025</strong>. 
+                              Nesta data, a prefeitura já havia adequado a cobrança às decisões do STJ, utilizando o valor da operação como base. 
+                              Não há valores retroativos a restituir por este motivo.
+                            </p>
+                          </>
+                        ) : result.baseUtilizada === 'menor' ? (
                           <>
                             <AlertCircle className="mx-auto text-amber-500 mb-6" size={56} />
                             <h3 className="text-xl text-brand-graphite mb-4">Pagamento Abaixo do Padrão</h3>
@@ -610,6 +649,25 @@ export default function App() {
           </p>
         </div>
       </footer>
+
+      {/* --- Floating WhatsApp Button --- */}
+      <motion.a
+        href="https://wa.me/5519993598714?text=Ol%C3%A1%2C%20vim%20de%20sua%20calculadora%20de%20ITBI%20em%20S%C3%A3o%20Jos%C3%A9%20Dos%20Campos.%20Gostaria%20de%20tirar%20algumas%20d%C3%BAvidas."
+        target="_blank"
+        rel="noopener noreferrer"
+        initial={{ opacity: 0, scale: 0.5, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ delay: 2, duration: 0.5 }}
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+        className="fixed bottom-6 right-6 z-50 bg-[#25D366] text-white p-4 rounded-full shadow-2xl flex items-center justify-center group"
+        aria-label="Falar no WhatsApp"
+      >
+        <MessageCircle size={28} fill="currentColor" />
+        <span className="max-w-0 overflow-hidden group-hover:max-w-xs group-hover:ml-2 transition-all duration-500 ease-in-out whitespace-nowrap font-bold text-sm">
+          Dúvidas? Fale comigo
+        </span>
+      </motion.a>
     </div>
   );
 }
