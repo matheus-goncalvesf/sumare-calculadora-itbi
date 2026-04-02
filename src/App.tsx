@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, ChangeEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Calculator, 
@@ -67,6 +67,26 @@ export default function App() {
     if (valorEscritura !== '' && val !== '') {
       setValorFinanciado(Number(valorEscritura) - val);
     }
+  };
+
+  const handleCurrencyInput = (e: ChangeEvent<HTMLInputElement>, setter: (val: number | '') => void, correlatedHandler?: (val: number | '') => void) => {
+    let value = e.target.value.replace(/\D/g, '');
+    if (value === '') {
+      setter('');
+      if (correlatedHandler) correlatedHandler('');
+      return;
+    }
+    const numericValue = parseFloat(value) / 100;
+    setter(numericValue);
+    if (correlatedHandler) correlatedHandler(numericValue);
+  };
+
+  const displayBRL = (value: number | '') => {
+    if (value === '') return '';
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(value);
   };
 
   // Clear result when inputs change to avoid stale data
@@ -253,12 +273,12 @@ export default function App() {
                     Valor total da operação (R$)
                   </label>
                   <input 
-                    type="number" 
+                    type="text" 
                     id="escritura" 
-                    placeholder="Ex: 350000"
+                    placeholder="R$ 0,00"
                     className={errors.includes('valorEscritura') ? 'border-red-500 bg-red-50' : ''}
-                    value={valorEscritura}
-                    onChange={(e) => handleValorEscrituraChange(e.target.value === '' ? '' : Number(e.target.value))}
+                    value={displayBRL(valorEscritura)}
+                    onChange={(e) => handleCurrencyInput(e, setValorEscritura, handleValorEscrituraChange)}
                   />
                   {errors.includes('valorEscritura') && <p className="text-[10px] text-red-500 mt-1">Campo obrigatório</p>}
                 </div>
@@ -268,21 +288,21 @@ export default function App() {
                     <div>
                       <label htmlFor="financiado">Valor financiado (R$)</label>
                       <input 
-                        type="number" 
+                        type="text" 
                         id="financiado" 
-                        placeholder="Ex: 200000"
-                        value={valorFinanciado}
-                        onChange={(e) => handleValorFinanciadoChange(e.target.value === '' ? '' : Number(e.target.value))}
+                        placeholder="R$ 0,00"
+                        value={displayBRL(valorFinanciado)}
+                        onChange={(e) => handleCurrencyInput(e, setValorFinanciado, handleValorFinanciadoChange)}
                       />
                     </div>
                     <div>
                       <label htmlFor="entrada">Parte não financiada (R$)</label>
                       <input 
-                        type="number" 
+                        type="text" 
                         id="entrada" 
-                        placeholder="Ex: 150000"
-                        value={valorEntrada}
-                        onChange={(e) => handleValorEntradaChange(e.target.value === '' ? '' : Number(e.target.value))}
+                        placeholder="R$ 0,00"
+                        value={displayBRL(valorEntrada)}
+                        onChange={(e) => handleCurrencyInput(e, setValorEntrada, handleValorEntradaChange)}
                       />
                     </div>
                   </div>
@@ -293,12 +313,12 @@ export default function App() {
                     Valor total do ITBI pago (R$)
                   </label>
                   <input 
-                    type="number" 
+                    type="text" 
                     id="itbi_pago" 
-                    placeholder="Ex: 8400"
+                    placeholder="R$ 0,00"
                     className={errors.includes('valorItbiPago') ? 'border-red-500 bg-red-50' : ''}
-                    value={valorItbiPago}
-                    onChange={(e) => setValorItbiPago(e.target.value === '' ? '' : Number(e.target.value))}
+                    value={displayBRL(valorItbiPago)}
+                    onChange={(e) => handleCurrencyInput(e, setValorItbiPago)}
                   />
                   {errors.includes('valorItbiPago') && <p className="text-[10px] text-red-500 mt-1">Campo obrigatório</p>}
                 </div>
