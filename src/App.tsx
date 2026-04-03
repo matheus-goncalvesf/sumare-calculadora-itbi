@@ -282,7 +282,7 @@ export default function App() {
               <div className="space-y-6">
                 <div>
                   <div className="flex items-center gap-2 mb-2">
-                    <label htmlFor="conhecimentoData">Você sabe quando o ITBI foi pago?</label>
+                    <label htmlFor="conhecimentoData">Você sabe a data exata em que o ITBI foi pago?</label>
                     <div className="group relative flex items-center">
                       <Info size={16} className="text-blue-500 cursor-pointer" />
                       <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block w-[280px] sm:w-[320px] p-3 bg-gray-800 text-white text-[11px] leading-relaxed rounded shadow-xl z-10">
