@@ -18,6 +18,7 @@ import {
 // --- Types ---
 type TransactionType = 'standard' | 'sfh_financed';
 type ConhecimentoItbi = 'exato' | 'aproximado' | 'nao_sabe' | 'descobrir';
+type ConhecimentoData = 'exata' | 'aproximada' | 'nao_sabe';
 
 interface CalculationResult {
   itbiCobrado: number;
@@ -42,6 +43,7 @@ export default function App() {
   const [valorItbiPago, setValorItbiPago] = useState<number | ''>('');
   const [tipoTransacao, setTipoTransacao] = useState<TransactionType>('standard');
   const [conhecimentoItbi, setConhecimentoItbi] = useState<ConhecimentoItbi>('exato');
+  const [conhecimentoData, setConhecimentoData] = useState<ConhecimentoData>('exata');
   const [result, setResult] = useState<CalculationResult | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -95,7 +97,7 @@ export default function App() {
   // Clear result when inputs change to avoid stale data
   useEffect(() => {
     setResult(null);
-  }, [dataPagamento, valorEscritura, valorEntrada, valorFinanciado, valorItbiPago, tipoTransacao, conhecimentoItbi]);
+  }, [dataPagamento, valorEscritura, valorEntrada, valorFinanciado, valorItbiPago, tipoTransacao, conhecimentoItbi, conhecimentoData]);
 
   // --- Constants ---
   const HOJE = new Date();
@@ -112,7 +114,10 @@ export default function App() {
   // --- Calculator Logic ---
   const calculate = () => {
     const newErrors: string[] = [];
-    if (!dataPagamento) newErrors.push('dataPagamento');
+    if ((conhecimentoData === 'exata' || conhecimentoData === 'aproximada') && !dataPagamento) {
+      newErrors.push('dataPagamento');
+    }
+    
     if (!valorEscritura) newErrors.push('valorEscritura');
     
     if (conhecimentoItbi === 'exato' || conhecimentoItbi === 'aproximado') {
@@ -133,7 +138,12 @@ export default function App() {
 
     // Simulate a small delay for better UX feedback
     setTimeout(() => {
-      const pgDate = new Date(dataPagamento);
+      let pgDate: Date | null = null;
+      if (conhecimentoData === 'exata') {
+        pgDate = new Date(dataPagamento);
+      } else if (conhecimentoData === 'aproximada') {
+        pgDate = new Date(`${dataPagamento}-01T12:00:00`); // Ensure it parses the local month correctly
+      }
 
       // Alíquotas e Isenções Sumaré
       const aliquotaPadrao = 0.02; // 2%
@@ -175,38 +185,44 @@ export default function App() {
         diferenca = Math.max(0, vItbiPago - itbiCorreto);
       }
 
-      // Verificação de Prazo (5 anos do pagamento)
-      const dataPrescricao = new Date(pgDate);
-      dataPrescricao.setFullYear(pgDate.getFullYear() + 5);
-      
-      const diffTime = dataPrescricao.getTime() - HOJE.getTime();
-      const diasRestantes = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
       let statusPrazo = "";
       let statusColor = "";
+      let diasRestantes = 0;
+      let dataPrescricaoStr = "";
+      let valorCorrigido = 0;
 
-      if (dataPrescricao < HOJE) {
-        statusPrazo = "⚠️ Prazo encerrado — este pagamento já prescreveu";
-        statusColor = "text-red-600";
-      } else if (diasRestantes <= 180) {
-        statusPrazo = `🔴 Urgente — prazo de prescrição próximo`;
-        statusColor = "text-red-500 font-bold";
-      } else if (diasRestantes <= 365) {
-        statusPrazo = `🟡 Atenção — menos de 1 ano para o prazo final`;
-        statusColor = "text-amber-600";
+      if (pgDate) {
+        // Verificação de Prazo (5 anos do pagamento)
+        const dataPrescricao = new Date(pgDate);
+        dataPrescricao.setFullYear(pgDate.getFullYear() + 5);
+        
+        const diffTime = dataPrescricao.getTime() - HOJE.getTime();
+        diasRestantes = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (dataPrescricao < HOJE) {
+          statusPrazo = "⚠️ Prazo encerrado — este pagamento já prescreveu";
+          statusColor = "text-red-600";
+        } else if (diasRestantes <= 180) {
+          statusPrazo = `🔴 Urgente — prazo de prescrição próximo`;
+          statusColor = "text-red-500 font-bold";
+        } else if (diasRestantes <= 365) {
+          statusPrazo = `🟡 Atenção — menos de 1 ano para o prazo final`;
+          statusColor = "text-amber-600";
+        } else {
+          statusPrazo = `🟢 Dentro do prazo para restituição`;
+          statusColor = "text-green-600";
+        }
+
+        dataPrescricaoStr = dataPrescricao.toLocaleDateString('pt-BR');
+
+        // Correção Selic + Juros Mora (Proxy: 1% ao mês)
+        const diffMeses = (HOJE.getFullYear() - pgDate.getFullYear()) * 12 + (HOJE.getMonth() - pgDate.getMonth());
+        const fator = Math.pow(1 + SELIC_PROXY, Math.max(0, diffMeses));
+        valorCorrigido = Math.max(0, diferenca) * fator;
       } else {
-        statusPrazo = `🟢 Dentro do prazo para restituição`;
-        statusColor = "text-green-600";
+        statusPrazo = "ℹ️ Recomendamos verificar guias pelo prazo prescricional (5 anos)";
+        statusColor = "text-gray-500";
       }
-
-      // Correção Selic + Juros Mora (Proxy: 1% ao mês)
-      const dateParts = dataPagamento.split('-');
-      const pgYear = parseInt(dateParts[0], 10);
-      const pgMonth = parseInt(dateParts[1], 10) - 1; // zero indexed
-      
-      const diffMeses = (HOJE.getFullYear() - pgYear) * 12 + (HOJE.getMonth() - pgMonth);
-      const fator = Math.pow(1 + SELIC_PROXY, Math.max(0, diffMeses));
-      const valorCorrigido = Math.max(0, diferenca) * fator;
 
       setResult({
         itbiCobrado: vItbiPago,
@@ -216,7 +232,7 @@ export default function App() {
         statusPrazo,
         statusColor,
         diasRestantes,
-        dataLimite: dataPrescricao.toLocaleDateString('pt-BR'),
+        dataLimite: dataPrescricaoStr,
         pgvEstimado,
         baseUtilizada,
         modoCalculo: isEstimativaApenas ? 'apenas_correto' : 'restituicao'
@@ -265,20 +281,44 @@ export default function App() {
             <div className="card shadow-xl border-t-4 border-brand-amber">
               <div className="space-y-6">
                 <div>
-                  <label htmlFor="data" className={errors.includes('dataPagamento') ? 'text-red-500' : ''}>
-                    Data do pagamento do ITBI
-                  </label>
-                  <input 
-                    type="date" 
-                    id="data" 
-                    className={errors.includes('dataPagamento') ? 'border-red-500 bg-red-50' : ''}
-                    value={dataPagamento}
-                    onChange={(e) => setDataPagamento(e.target.value)}
-                  />
-                  {errors.includes('dataPagamento') && <p className="text-[10px] text-red-500 mt-1">Campo obrigatório</p>}
+                  <label htmlFor="conhecimentoData">Você sabe quando o ITBI foi pago?</label>
+                  <select 
+                    id="conhecimentoData" 
+                    value={conhecimentoData}
+                    onChange={(e) => setConhecimentoData(e.target.value as ConhecimentoData)}
+                    className="mb-3"
+                  >
+                    <option value="exata">Sei a data exata</option>
+                    <option value="aproximada">Sei apenas o mês e ano</option>
+                    <option value="nao_sabe">Não lembro / Não sei a data</option>
+                  </select>
+
+                  {conhecimentoData !== 'nao_sabe' && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                    >
+                      <label htmlFor="data" className={errors.includes('dataPagamento') ? 'text-red-500 font-medium' : 'font-medium'}>
+                        {conhecimentoData === 'exata' ? 'Data do pagamento' : 'Mês/Ano do pagamento'}
+                      </label>
+                      <input 
+                        type={conhecimentoData === 'exata' ? 'date' : 'month'}
+                        id="data" 
+                        className={errors.includes('dataPagamento') ? 'border-red-500 bg-red-50 mt-1' : 'mt-1'}
+                        value={dataPagamento}
+                        onChange={(e) => setDataPagamento(e.target.value)}
+                      />
+                      {errors.includes('dataPagamento') && <p className="text-[10px] text-red-500 mt-1">Campo obrigatório</p>}
+                    </motion.div>
+                  )}
+                  
+                  <div className="p-3 bg-gray-50 border border-gray-100 rounded-sm mt-3 text-xs text-gray-500 italic space-y-1">
+                    <p><strong>Atenção:</strong> O prazo limite de 5 anos para pedir a restituição começa a contar da <strong className="text-gray-700">data do efetivo pagamento</strong> da guia de ITBI.</p>
+                    <p><strong>ITBI Parcelado?</strong> Se o seu ITBI for parcelado, a prescrição e a correção começam a contar separadamente a partir da data de pagamento de cada parcela. Use a data da última parcela para uma estimativa conservadora, ou da primeira para focar na prescrição primária.</p>
+                  </div>
                 </div>
 
-                <div>
+                <div className="pt-4 border-t border-gray-100">
                   <label htmlFor="escritura" className={errors.includes('valorEscritura') ? 'text-red-500' : ''}>
                     Valor total da operação (R$)
                   </label>
@@ -504,15 +544,24 @@ export default function App() {
                               </div>
                             </div>
 
-                            <div className="bg-brand-cream p-6 rounded-sm mb-8 text-center border border-brand-amber/20">
-                              <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Valor Estimado com Correção</p>
-                              <p className="text-4xl font-bold text-brand-graphite">
-                                {formatCurrency(result.valorCorrigido)}
-                              </p>
-                              <p className="text-[10px] text-gray-400 mt-2 italic">
-                                *Apenas para referência (Selic estimada).
-                              </p>
-                            </div>
+                            {conhecimentoData === 'nao_sabe' ? (
+                              <div className="bg-red-50 p-4 rounded-sm mb-8 border border-red-100 flex gap-3">
+                                <AlertCircle className="text-red-500 flex-shrink-0 mt-0.5" size={20} />
+                                <p className="text-xs text-red-800 leading-relaxed">
+                                  <strong>Atenção ao Prazo Prescricional:</strong> Não é possível calcular o juros de correção e alertá-lo sobre prescrição pois a data do pagamento não foi informada. Só é possível pedir a devolução dos pagamentos indevidos realizados nos <strong>últimos 5 anos</strong>. Verifique o comprovante.
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="bg-brand-cream p-6 rounded-sm mb-8 text-center border border-brand-amber/20">
+                                <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Valor Estimado com Correção</p>
+                                <p className="text-4xl font-bold text-brand-graphite">
+                                  {formatCurrency(result.valorCorrigido)}
+                                </p>
+                                <p className="text-[10px] text-gray-400 mt-2 italic">
+                                  *Apenas para referência (Selic estimada).
+                                </p>
+                              </div>
+                            )}
                           </>
                         )}
 
