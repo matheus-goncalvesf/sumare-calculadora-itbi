@@ -281,7 +281,18 @@ export default function App() {
             <div className="card shadow-xl border-t-4 border-brand-amber">
               <div className="space-y-6">
                 <div>
-                  <label htmlFor="conhecimentoData">Você sabe quando o ITBI foi pago?</label>
+                  <div className="flex items-center gap-2 mb-2">
+                    <label htmlFor="conhecimentoData">Você sabe quando o ITBI foi pago?</label>
+                    <div className="group relative flex items-center">
+                      <Info size={16} className="text-blue-500 cursor-pointer" />
+                      <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block w-[280px] sm:w-[320px] p-3 bg-gray-800 text-white text-[11px] leading-relaxed rounded shadow-xl z-10">
+                        <p className="mb-2"><strong className="text-blue-300">Atenção:</strong> O prazo limite de 5 anos para pedir a restituição começa a contar da data do <strong>efetivo pagamento</strong> da guia.</p>
+                        <p><strong className="text-blue-300">ITBI Parcelado?</strong> A prescrição e a correção passam a contar separadamente a partir da data de pagamento de cada parcela.</p>
+                        <div className="absolute left-1/2 -translate-x-1/2 top-full border-4 border-transparent border-t-gray-800"></div>
+                      </div>
+                    </div>
+                  </div>
+                  
                   <select 
                     id="conhecimentoData" 
                     value={conhecimentoData}
@@ -311,11 +322,6 @@ export default function App() {
                       {errors.includes('dataPagamento') && <p className="text-[10px] text-red-500 mt-1">Campo obrigatório</p>}
                     </motion.div>
                   )}
-                  
-                  <div className="p-3 bg-gray-50 border border-gray-100 rounded-sm mt-3 text-xs text-gray-500 italic space-y-1">
-                    <p><strong>Atenção:</strong> O prazo limite de 5 anos para pedir a restituição começa a contar da <strong className="text-gray-700">data do efetivo pagamento</strong> da guia de ITBI.</p>
-                    <p><strong>ITBI Parcelado?</strong> Se o seu ITBI for parcelado, a prescrição e a correção começam a contar separadamente a partir da data de pagamento de cada parcela. Use a data da última parcela para uma estimativa conservadora, ou da primeira para focar na prescrição primária.</p>
-                  </div>
                 </div>
 
                 <div className="pt-4 border-t border-gray-100">
