@@ -17,6 +17,7 @@ import {
 
 // --- Types ---
 type TransactionType = 'standard' | 'sfh_financed';
+type ConhecimentoItbi = 'exato' | 'aproximado' | 'nao_sabe' | 'descobrir';
 
 interface CalculationResult {
   itbiCobrado: number;
@@ -29,6 +30,7 @@ interface CalculationResult {
   dataLimite: string;
   pgvEstimado: number;
   baseUtilizada: 'escritura' | 'pgv' | 'menor';
+  modoCalculo: 'restituicao' | 'apenas_correto';
 }
 
 export default function App() {
@@ -39,6 +41,7 @@ export default function App() {
   const [valorFinanciado, setValorFinanciado] = useState<number | ''>('');
   const [valorItbiPago, setValorItbiPago] = useState<number | ''>('');
   const [tipoTransacao, setTipoTransacao] = useState<TransactionType>('standard');
+  const [conhecimentoItbi, setConhecimentoItbi] = useState<ConhecimentoItbi>('exato');
   const [result, setResult] = useState<CalculationResult | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -92,7 +95,7 @@ export default function App() {
   // Clear result when inputs change to avoid stale data
   useEffect(() => {
     setResult(null);
-  }, [dataPagamento, valorEscritura, valorEntrada, valorFinanciado, valorItbiPago, tipoTransacao]);
+  }, [dataPagamento, valorEscritura, valorEntrada, valorFinanciado, valorItbiPago, tipoTransacao, conhecimentoItbi]);
 
   // --- Constants ---
   const HOJE = new Date();
@@ -111,7 +114,10 @@ export default function App() {
     const newErrors: string[] = [];
     if (!dataPagamento) newErrors.push('dataPagamento');
     if (!valorEscritura) newErrors.push('valorEscritura');
-    if (!valorItbiPago) newErrors.push('valorItbiPago');
+    
+    if (conhecimentoItbi === 'exato' || conhecimentoItbi === 'aproximado') {
+      if (!valorItbiPago) newErrors.push('valorItbiPago');
+    }
     
     if (newErrors.length > 0) {
       setErrors(newErrors);
@@ -144,27 +150,30 @@ export default function App() {
         itbiCorreto = vEscritura * aliquotaPadrao;
       }
 
+      // Verifica modo de cálculo
+      const isEstimativaApenas = conhecimentoItbi === 'nao_sabe' || conhecimentoItbi === 'descobrir';
+
       // 2. Estimar PGV a partir do ITBI Pago
       let pgvEstimado = vEscritura;
       let baseUtilizada: 'escritura' | 'pgv' | 'menor' = 'escritura';
+      let diferenca = 0;
 
-      if (vItbiPago > itbiCorreto + 0.1) { 
-        baseUtilizada = 'pgv';
-        if (tipoTransacao === 'sfh_financed') {
-          // A prefeitura acata o valor fixo financiado (que vem do contrato do banco) e 
-          // joga todo o aumento da Pauta de Valores para a parcela restante (alíquota padrao 2%).
-          const itbiFinanciado = vFinanciado * aliquotaSFH;
-          const itbiSobrandoParaEntrada = vItbiPago - itbiFinanciado;
-          const baseSobrandoEstimada = itbiSobrandoParaEntrada / aliquotaPadrao;
-          pgvEstimado = vFinanciado + baseSobrandoEstimada;
-        } else {
-          pgvEstimado = vItbiPago / aliquotaPadrao;
+      if (!isEstimativaApenas) {
+        if (vItbiPago > itbiCorreto + 0.1) { 
+          baseUtilizada = 'pgv';
+          if (tipoTransacao === 'sfh_financed') {
+            const itbiFinanciado = vFinanciado * aliquotaSFH;
+            const itbiSobrandoParaEntrada = vItbiPago - itbiFinanciado;
+            const baseSobrandoEstimada = itbiSobrandoParaEntrada / aliquotaPadrao;
+            pgvEstimado = vFinanciado + baseSobrandoEstimada;
+          } else {
+            pgvEstimado = vItbiPago / aliquotaPadrao;
+          }
+        } else if (vItbiPago < itbiCorreto - 0.1) {
+          baseUtilizada = 'menor';
         }
-      } else if (vItbiPago < itbiCorreto - 0.1) {
-        baseUtilizada = 'menor';
+        diferenca = Math.max(0, vItbiPago - itbiCorreto);
       }
-
-      const diferenca = Math.max(0, vItbiPago - itbiCorreto);
 
       // Verificação de Prazo (5 anos do pagamento)
       const dataPrescricao = new Date(pgDate);
@@ -209,7 +218,8 @@ export default function App() {
         diasRestantes,
         dataLimite: dataPrescricao.toLocaleDateString('pt-BR'),
         pgvEstimado,
-        baseUtilizada
+        baseUtilizada,
+        modoCalculo: isEstimativaApenas ? 'apenas_correto' : 'restituicao'
       });
       setIsCalculating(false);
 
@@ -308,19 +318,67 @@ export default function App() {
                   </div>
                 )}
 
-                <div className="pt-4 border-t border-gray-100">
-                  <label htmlFor="itbi_pago" className={errors.includes('valorItbiPago') ? 'text-red-500' : ''}>
-                    Valor total do ITBI pago (R$)
-                  </label>
-                  <input 
-                    type="text" 
-                    id="itbi_pago" 
-                    placeholder="R$ 0,00"
-                    className={errors.includes('valorItbiPago') ? 'border-red-500 bg-red-50' : ''}
-                    value={displayBRL(valorItbiPago)}
-                    onChange={(e) => handleCurrencyInput(e, setValorItbiPago)}
-                  />
-                  {errors.includes('valorItbiPago') && <p className="text-[10px] text-red-500 mt-1">Campo obrigatório</p>}
+                <div className="pt-4 border-t border-gray-100 space-y-4">
+                  <div>
+                    <label htmlFor="conhecimento">Você sabe quanto foi pago de ITBI?</label>
+                    <select 
+                      id="conhecimento" 
+                      value={conhecimentoItbi}
+                      onChange={(e) => setConhecimentoItbi(e.target.value as ConhecimentoItbi)}
+                    >
+                      <option value="exato">Sim, sei o valor exato</option>
+                      <option value="aproximado">Sei o valor aproximado</option>
+                      <option value="nao_sabe">Não lembro / Não faço ideia</option>
+                      <option value="descobrir">Não sei, mas quero descobrir o valor exato</option>
+                    </select>
+                  </div>
+
+                  {conhecimentoItbi === 'descobrir' && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="p-4 bg-brand-cream border border-brand-amber text-gray-700 text-sm rounded-sm"
+                    >
+                      <h4 className="font-bold text-brand-graphite mb-2">Como consultar o ITBI pago:</h4>
+                      <p className="mb-2">Acesse o portal da Prefeitura de Sumaré no link abaixo e tenha em mãos:</p>
+                      <ul className="list-disc pl-5 mb-4 text-xs font-medium space-y-1">
+                        <li>Cadastro Imobiliário (encontrado no carnê de IPTU)</li>
+                        <li>Número do ITBI (pode estar na escritura ou registro)</li>
+                        <li>Ano da Guia do ITBI</li>
+                      </ul>
+                      <a 
+                        href="https://sumare.atende.net/autoatendimento/servicos/declaracao-de-quitacao-de-itbi/detalhar/1" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-block text-brand-amber font-bold hover:underline"
+                      >
+                        Acessar Portal da Prefeitura de Sumaré ↗
+                      </a>
+                    </motion.div>
+                  )}
+
+                  {(conhecimentoItbi === 'exato' || conhecimentoItbi === 'aproximado') && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                    >
+                      <label htmlFor="itbi_pago" className={errors.includes('valorItbiPago') ? 'text-red-500' : ''}>
+                        Valor {conhecimentoItbi === 'aproximado' ? 'aproximado ' : ''}do ITBI pago (R$)
+                      </label>
+                      <input 
+                        type="text" 
+                        id="itbi_pago" 
+                        placeholder="R$ 0,00"
+                        className={errors.includes('valorItbiPago') ? 'border-red-500 bg-red-50' : ''}
+                        value={displayBRL(valorItbiPago)}
+                        onChange={(e) => handleCurrencyInput(e, setValorItbiPago)}
+                      />
+                      {conhecimentoItbi === 'aproximado' && (
+                        <p className="text-[10px] text-brand-amber font-bold mt-1">* O cálculo usará esse valor como base aproximada.</p>
+                      )}
+                      {errors.includes('valorItbiPago') && <p className="text-[10px] text-red-500 mt-1">Campo obrigatório</p>}
+                    </motion.div>
+                  )}
                 </div>
 
                 <div>
@@ -372,7 +430,7 @@ export default function App() {
                     exit={{ opacity: 0, x: -20 }}
                     className="card border-brand-amber/30 h-full flex flex-col justify-between shadow-2xl"
                   >
-                    {result.diferenca <= 0 ? (
+                    {result.modoCalculo === 'restituicao' && result.diferenca <= 0 ? (
                       <div className="text-center py-12 px-6">
                         {result.baseUtilizada === 'menor' ? (
                           <>
@@ -407,42 +465,56 @@ export default function App() {
                           <h3 className="text-xl">Resultado Estimado</h3>
                         </div>
 
-                        <div className="space-y-4 mb-8">
-                          <div className="flex justify-between text-sm border-b border-gray-100 pb-2">
-                            <span className="text-gray-500">ITBI pago:</span>
-                            <span className="font-medium">{formatCurrency(result.itbiCobrado)}</span>
+                        {result.modoCalculo === 'apenas_correto' ? (
+                          <div className="bg-brand-cream p-6 rounded-sm mb-8 text-center border border-brand-amber/20">
+                            <p className="text-sm font-bold text-gray-500 mb-2">Baseado no valor da operação, você deveria ter pagado:</p>
+                            <p className="text-4xl font-bold text-brand-graphite mb-4">
+                              {formatCurrency(result.itbiCorreto)}
+                            </p>
+                            <p className="text-xs text-gray-600 leading-relaxed">
+                              Se em sua guia municipal ou comprovante de pagamento o valor cobrado foi <strong className="text-red-600">maior</strong> que este indicado acima, você provavelmente tem valores a restituir. Recomendamos que você procure o comprovante e refaça esta simulação para estimar a diferença com juros.
+                            </p>
                           </div>
-                          <div className="flex justify-between text-sm border-b border-gray-100 pb-2">
-                            <span className="text-gray-500">ITBI que deveria ser pago:</span>
-                            <span className="font-medium">{formatCurrency(result.itbiCorreto)}</span>
-                          </div>
-                          <div className="flex justify-between text-sm border-b border-gray-100 pb-2">
-                            <span className="text-gray-500">Base de cálculo utilizada:</span>
-                            <span className={`font-medium ${result.baseUtilizada === 'pgv' ? 'text-red-500' : 'text-green-500'}`}>
-                              {result.baseUtilizada === 'pgv' ? 'Pauta de Valores (Ilegal)' : 'Valor da Operação'}
-                            </span>
-                          </div>
-                          {result.baseUtilizada === 'pgv' && (
-                            <div className="flex justify-between text-sm border-b border-gray-100 pb-2 bg-red-50 p-2 rounded -mx-2 px-2 mt-2">
-                              <span className="text-red-700 font-medium">↳ Base cobrada estimada da Prefeitura:</span>
-                              <span className="font-bold text-red-700">{formatCurrency(result.pgvEstimado)}</span>
+                        ) : (
+                          <>
+                            <div className="space-y-4 mb-8">
+                              <div className="flex justify-between text-sm border-b border-gray-100 pb-2">
+                                <span className="text-gray-500">ITBI pago:</span>
+                                <span className="font-medium">{formatCurrency(result.itbiCobrado)}</span>
+                              </div>
+                              <div className="flex justify-between text-sm border-b border-gray-100 pb-2">
+                                <span className="text-gray-500">ITBI que deveria ser pago:</span>
+                                <span className="font-medium">{formatCurrency(result.itbiCorreto)}</span>
+                              </div>
+                              <div className="flex justify-between text-sm border-b border-gray-100 pb-2">
+                                <span className="text-gray-500">Base de cálculo utilizada:</span>
+                                <span className={`font-medium ${result.baseUtilizada === 'pgv' ? 'text-red-500' : 'text-green-500'}`}>
+                                  {result.baseUtilizada === 'pgv' ? 'Pauta de Valores (Ilegal)' : 'Valor da Operação'}
+                                </span>
+                              </div>
+                              {result.baseUtilizada === 'pgv' && (
+                                <div className="flex justify-between text-sm border-b border-gray-100 pb-2 bg-red-50 p-2 rounded -mx-2 px-2 mt-2">
+                                  <span className="text-red-700 font-medium">↳ Base cobrada estimada da Prefeitura:</span>
+                                  <span className="font-bold text-red-700">{formatCurrency(result.pgvEstimado)}</span>
+                                </div>
+                              )}
+                              <div className="flex justify-between items-center pt-4">
+                                <span className="text-brand-graphite font-bold">Diferença estimada:</span>
+                                <span className="text-xl font-bold text-brand-amber">{formatCurrency(result.diferenca)}</span>
+                              </div>
                             </div>
-                          )}
-                          <div className="flex justify-between items-center pt-4">
-                            <span className="text-brand-graphite font-bold">Diferença estimada:</span>
-                            <span className="text-xl font-bold text-brand-amber">{formatCurrency(result.diferenca)}</span>
-                          </div>
-                        </div>
 
-                        <div className="bg-brand-cream p-6 rounded-sm mb-8 text-center border border-brand-amber/20">
-                          <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Valor Estimado com Correção</p>
-                          <p className="text-4xl font-bold text-brand-graphite">
-                            {formatCurrency(result.valorCorrigido)}
-                          </p>
-                          <p className="text-[10px] text-gray-400 mt-2 italic">
-                            *Apenas para referência (Selic estimada).
-                          </p>
-                        </div>
+                            <div className="bg-brand-cream p-6 rounded-sm mb-8 text-center border border-brand-amber/20">
+                              <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Valor Estimado com Correção</p>
+                              <p className="text-4xl font-bold text-brand-graphite">
+                                {formatCurrency(result.valorCorrigido)}
+                              </p>
+                              <p className="text-[10px] text-gray-400 mt-2 italic">
+                                *Apenas para referência (Selic estimada).
+                              </p>
+                            </div>
+                          </>
+                        )}
 
                         <div className="space-y-4">
                           <div className={`flex items-center gap-2 text-sm ${result.statusColor}`}>
@@ -451,7 +523,7 @@ export default function App() {
                           </div>
                           
                           <a 
-                            href={`https://wa.me/5519993598714?text=Ol%C3%A1%2C%20Matheus.%20Acabei%20de%20usar%20sua%20calculadora%20de%20ITBI%20em%20Sumar%C3%A9%20e%20verifiquei%20uma%20poss%C3%ADvel%20diferen%C3%A7a%20de%20${formatCurrency(result.valorCorrigido)}%20no%20meu%20imposto.%20Gostaria%20de%20saber%20como%20proceder.`}
+                            href={`https://wa.me/5519993598714?text=Ol%C3%A1%2C%20Matheus.%20Acabei%20de%20usar%20sua%20calculadora%20de%20ITBI%20em%20Sumar%C3%A9%20e%20verifiquei%20uma%20poss%C3%ADvel%20diferen%C3%A7a%20${result.modoCalculo === 'restituicao' ? `de ${formatCurrency(result.valorCorrigido)}` : ''}%20no%20meu%20imposto.%20Gostaria%20de%20saber%20como%20proceder.`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="w-full bg-[#25D366] text-white flex justify-center items-center gap-3 py-4 rounded-sm font-bold hover:bg-[#128C7E] transition-colors shadow-lg"
